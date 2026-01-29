@@ -1,0 +1,62 @@
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge legacy */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.flair {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.8);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+html, body{
+  cursor: none;
+}
+
+@font-face {
+  font-display: block;
+  font-family: Mori;
+  font-style: normal;
+  font-weight: 600;
+  src: url(https://assets.codepen.io/16327/PPMori-Regular.woff) format("woff");
+}
+
+.text-scramble__content {
+  position: fixed;        /* relative -> fixed */
+  right: 20%;           /* 화면 오른쪽에서 여백 */
+  top: 70%;               /* 세로 가운데 기준 */
+  transform: translateY(-50%); /* 세로 가운데 맞추기 */
+
+  max-width: 33ch;
+  font-size: max(2rem, min(5.69579vw + 0.665049rem, 3rem));
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+
+  margin-top: 0;          /* 기존 margin-top 제거 */
+  padding-bottom: 1.1em;
+  z-index: 10;
+  color: white;
+  z-index: 9999;
+}
+
+.text-scramble__text {
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.text-scramble__text span {
+  word-break: break-word;
+}
