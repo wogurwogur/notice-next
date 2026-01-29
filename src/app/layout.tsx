@@ -13,7 +13,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <div className="h-screen overflow-y-auto no-scrollbar">
+        <div className="h-screen overflow-hidden">
           <FlairCursor></FlairCursor>
           {children}
         </div>
