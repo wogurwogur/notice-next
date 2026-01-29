@@ -1,10 +1,13 @@
+ 
 
-export default function page(){
+export default function Header(){
+    
     return (
-        <div className="bg-cyan-500 w-full h-1/10 fixed">
+        
+            <div className="w-full h-1/10 fixed z-50">
 
-            <p className="text-center text-[40px] align-middl p-0 ">게시판</p>
+                <p className="text-right text-[40px] p-0 mr-2 align-middle text-white">게시판</p>
 
-        </div>
+            </div>
     );
 }
