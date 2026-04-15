@@ -135,7 +135,7 @@ export default function PageOne({ onActiveChange }: { onActiveChange: (v: boolea
   return (
     <div ref={root} className="p-0 m-0">
       <div className="w-screen h-screen relative overflow-hidden p-0 m-0">
-        <div className="bg-black w-screen h-screen p-0 m-0 dis1 absolute"></div>
+        <div className="bg-black w-screen h-screen p-0 m-0 dis1 absolute opacity-0"></div>
 
         <div className="text-scramble__content absolute top-0 right-0 p-6 z-20 text-white">
           <p id="scramble-text-original">안녕하세요. 포기하지 않고 꾸준히 성장하는 개발자 최재혁 입니다.</p>
@@ -149,10 +149,10 @@ export default function PageOne({ onActiveChange }: { onActiveChange: (v: boolea
           </p>
         </div>
 
-        <div className="dis2 w-screen h-screen bg-gray-300 absolute right"></div>
-        <div className="dis3 w-screen h-1/5 bg-gray-200 absolute p-0 m-0 z-30"></div>
-        <div className="dis4 w-screen h-screen absolute p-0 m-0 z-10">
-            <Image src="/images/123321.png" alt="img" width={400} height={300} className=""/>
+        <div className="dis2 w-screen h-screen bg-gray-300 absolute right opacity-0"></div>
+        <div className="dis3 w-screen h-1/5 bg-gray-200 absolute p-0 m-0 z-30 opacity-0"></div>
+        <div className="dis4 w-screen h-screen absolute p-0 m-0 z-10 opacity-0">
+            {/*<Image src="/images/123321.png" alt="img" width={400} height={300} className=""/>*/}
         </div>
         
       </div>

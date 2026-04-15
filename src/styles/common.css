@@ -31,7 +31,7 @@ html, body{
 }
 
 .text-scramble__content {
-  position: fixed;        /* relative -> fixed */
+  position: absolute;
   right: 20%;           /* 화면 오른쪽에서 여백 */
   top: 70%;               /* 세로 가운데 기준 */
   transform: translateY(-50%); /* 세로 가운데 맞추기 */

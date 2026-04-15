@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import PageOne from "@/components/PageOne";
+import NoticeListPanel from "@/components/NoticeListPanel";
 
 export default function PushScroll() {
+  const [initialLockActive, setInitialLockActive] = useState(true);
   const root = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(false);
   const indexRef = useRef(0);
   const lockRef = useRef(false);
-  const lockTimerRef = useRef<number | null>(null);
   const initLockTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -24,9 +24,32 @@ export default function PushScroll() {
       indexRef.current = clamp(Math.round(el.scrollTop / h));
     };
 
+    const canScrollInsideCurrentPanel = (deltaY: number) => {
+      const currentPanel = panels[indexRef.current];
+      if (!currentPanel) return false;
+
+      const scrollTarget = currentPanel.querySelector<HTMLElement>(
+        '[data-scrollable="true"]'
+      );
+      if (!scrollTarget) return false;
+
+      const maxScrollTop = scrollTarget.scrollHeight - scrollTarget.clientHeight;
+      if (maxScrollTop <= 0) return false;
+
+      const goingDown = deltaY > 0;
+      const atTop = scrollTarget.scrollTop <= 0;
+      const atBottom = scrollTarget.scrollTop >= maxScrollTop - 1;
+
+      return (goingDown && !atBottom) || (!goingDown && !atTop);
+    };
+
     const onWheel = (e: WheelEvent) => {
       if (panels.length === 0) return;
-      // Always prevent native scroll to avoid multi-panel jumps
+
+      // If current panel has its own scrollable area, let it handle wheel first.
+      if (canScrollInsideCurrentPanel(e.deltaY)) return;
+
+      // Otherwise handle panel-to-panel snap scroll.
       e.preventDefault();
       if (lockRef.current) return;
 
@@ -38,46 +61,60 @@ export default function PushScroll() {
       lockRef.current = true;
       panels[next].scrollIntoView({ behavior: "smooth", block: "start" });
 
-      if (lockTimerRef.current) {
-        window.clearTimeout(lockTimerRef.current);
-      }
-      lockTimerRef.current = window.setTimeout(() => {
+      window.setTimeout(() => {
         lockRef.current = false;
         syncIndex();
-        lockTimerRef.current = null;
       }, 700);
     };
+    const onGlobalWheel = (e: WheelEvent) => {
+      if (!lockRef.current) return;
+      e.preventDefault();
+    };
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     syncIndex();
-    // Initial lock for 8.4s after mount
+    // Keep initial scroll lock for 8.4 seconds on first screen.
     lockRef.current = true;
     initLockTimerRef.current = window.setTimeout(() => {
       lockRef.current = false;
+      setInitialLockActive(false);
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
       initLockTimerRef.current = null;
       syncIndex();
     }, 8400);
     el.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("wheel", onGlobalWheel, { passive: false });
     window.addEventListener("resize", syncIndex);
 
     return () => {
-      if (lockTimerRef.current) {
-        window.clearTimeout(lockTimerRef.current);
-        lockTimerRef.current = null;
-      }
       if (initLockTimerRef.current) {
         window.clearTimeout(initLockTimerRef.current);
         initLockTimerRef.current = null;
       }
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
       el.removeEventListener("wheel", onWheel);
+      window.removeEventListener("wheel", onGlobalWheel);
       window.removeEventListener("resize", syncIndex);
     };
   }, []);
 
   return (
-    <div ref={root} className="h-screen overflow-y-auto no-scrollbar">
-      <section className="panel"><PageOne onActiveChange={setActive} /></section>
-      <section className="panel">Page 2</section>
-      <section className="panel">Page 3</section>
+    <div
+      ref={root}
+      className={`h-screen no-scrollbar ${initialLockActive ? "overflow-hidden" : "overflow-y-auto"}`}
+    >
+      <section className="panel h-screen">
+        <PageOne onActiveChange={() => {}} />
+      </section>
+      <section className="panel h-screen">
+        <NoticeListPanel embedded />
+      </section>
     </div>
   );
 }

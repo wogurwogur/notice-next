@@ -1,6 +1,5 @@
+import NoticeListPanel from "@/components/NoticeListPanel";
 
-export default function notice_list(){
-    return(
-        <div></div>
-    );
+export default function NoticeListPage() {
+  return <NoticeListPanel />;
 }

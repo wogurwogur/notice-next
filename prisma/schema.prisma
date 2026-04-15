@@ -8,15 +8,53 @@ datasource db {
 }
 
 model Notice {
-  seq_notice_id        Int      @id @default(autoincrement())
-  title     String
-  content   String
-  createdAt DateTime @default(now())
+  seq_notice_id Int      @id @default(autoincrement())
+  title         String
+  seq_content   Int?
+  src           String?
+  img_seq_one   Int?
+  img_seq_two   Int?
+  img_seq_three Int?
+  img_seq_fore  Int?
+  img_seq_five  Int?
+  tech_stack    String?
+  createdAt     DateTime @default(now())
+  contents      Content[]
+  images        Notice_img[]
+
+  @@map("TBL_NOTICE")
+}
+
+model Content {
+  seq_content Int    @id @default(autoincrement())
+  seq_notice  Int
+  title       String
+  content     String
+
+  notice      Notice @relation(fields: [seq_notice], references: [seq_notice_id])
+
+  @@index([seq_notice])
+  @@map("TBL_CONTENT")
+}
+
+model Notice_img {
+  seq_notice_img_id Int    @id @default(autoincrement())
+  notice_id         Int
+  img_name          String?
+  img_title         String?
+  src               String?
+
+  notice            Notice @relation(fields: [notice_id], references: [seq_notice_id])
+
+  @@map("TBL_NOTICE_IMG")
 }
 
 model User {
-  seq_user_id        Int      @id @default(autoincrement())
-  user_id     String
-  user_password   String
-  createdAt DateTime @default(now())
+  seq_user_id   Int      @id @default(autoincrement())
+  user_id       String   @unique
+  user_password String
+  user_email    String
+  createdAt     DateTime @default(now())
+
+  @@map("TBL_USER")
 }
