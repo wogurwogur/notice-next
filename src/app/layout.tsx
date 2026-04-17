@@ -11,8 +11,8 @@ export default function RootLayout({
 }>) {
 
   return (
-    <html lang="ko">
-      <body>
+    <html lang="ko" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <div className="h-screen overflow-hidden">
           <FlairCursor></FlairCursor>
           {children}

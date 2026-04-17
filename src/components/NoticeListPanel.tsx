@@ -60,20 +60,40 @@ type NoticeUpdateResponse = {
   message?: string;
 };
 
+type NoticeDeleteResponse = {
+  noticeId?: number;
+  message?: string;
+};
+
+type CurrentUserResponse = {
+  user?: {
+    user_role?: string;
+  };
+};
+
 const PAGE_SIZE = 4;
+const KO_DATETIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
 
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR");
+  return KO_DATETIME_FORMATTER.format(date);
 }
 
 export default function NoticeListPanel({ embedded = false }: { embedded?: boolean }) {
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [detailNotice, setDetailNotice] = useState<NoticeDetail | null>(null);
@@ -81,6 +101,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
   const [detailError, setDetailError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editTechStack, setEditTechStack] = useState("");
@@ -127,8 +148,6 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
 
       currentPageRef.current = payload.page;
       hasMoreRef.current = payload.hasMore;
-      setCurrentPage(payload.page);
-      setTotalPages(payload.totalPages);
       setHasMore(payload.hasMore);
     } catch (fetchError) {
       console.error(fetchError);
@@ -142,6 +161,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
   const resetEditState = useCallback(() => {
     setIsEditing(false);
     setIsSavingEdit(false);
+    setIsDeleting(false);
     setEditError(null);
     setEditTitle("");
     setEditTechStack("");
@@ -181,37 +201,8 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
     resetEditState();
   }, [resetEditState]);
 
-  const addEditContent = useCallback(() => {
-    setEditContents((prev) => [
-      ...prev,
-      {
-        local_id: nextEditContentIdRef.current++,
-        title: "",
-        content: "",
-      },
-    ]);
-  }, []);
-
-  const removeEditContent = useCallback((localId: number) => {
-    setEditContents((prev) => {
-      if (prev.length <= 1) return prev;
-      return prev.filter((item) => item.local_id !== localId);
-    });
-  }, []);
-
-  const updateEditContent = useCallback(
-    (localId: number, key: "title" | "content", value: string) => {
-      setEditContents((prev) =>
-        prev.map((item) =>
-          item.local_id === localId ? { ...item, [key]: value } : item
-        )
-      );
-    },
-    []
-  );
-
   const saveEdit = useCallback(async () => {
-    if (!detailNotice || isSavingEdit) return;
+    if (!detailNotice || isSavingEdit || isDeleting) return;
 
     const title = editTitle.trim();
     const contents = editContents
@@ -282,7 +273,15 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
     } finally {
       setIsSavingEdit(false);
     }
-  }, [detailNotice, editContents, editTechStack, editTitle, isSavingEdit, resetEditState]);
+  }, [
+    detailNotice,
+    editContents,
+    editTechStack,
+    editTitle,
+    isDeleting,
+    isSavingEdit,
+    resetEditState,
+  ]);
 
   const openDetailModal = useCallback((notice: Notice) => {
     setSelectedNotice(notice);
@@ -299,14 +298,73 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
     resetEditState();
   }, [resetEditState]);
 
+  const deleteNotice = useCallback(async () => {
+    if (!detailNotice || isDeleting || isSavingEdit) return;
+
+    const confirmed = window.confirm("이 공지사항을 삭제하시겠습니까?");
+    if (!confirmed) return;
+
+    setEditError(null);
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch("/api/notice/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ noticeId: detailNotice.seq_notice_id }),
+      });
+
+      const payload = (await response.json()) as NoticeDeleteResponse;
+      if (!response.ok) {
+        throw new Error(payload.message ?? "Failed to delete notice.");
+      }
+
+      setNotices((prev) =>
+        prev.filter((item) => item.seq_notice_id !== detailNotice.seq_notice_id)
+      );
+      closeDetailModal();
+    } catch (deleteError) {
+      console.error(deleteError);
+      setEditError(
+        deleteError instanceof Error ? deleteError.message : "Failed to delete notice."
+      );
+      setIsDeleting(false);
+    }
+  }, [closeDetailModal, detailNotice, isDeleting, isSavingEdit]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUserRole = async () => {
+      try {
+        const response = await fetch("/api/user/me", { cache: "no-store" });
+        if (!response.ok) {
+          if (!cancelled) setIsAdmin(false);
+          return;
+        }
+
+        const payload = (await response.json()) as CurrentUserResponse;
+        if (!cancelled) {
+          setIsAdmin(payload.user?.user_role === "ADMIN");
+        }
+      } catch {
+        if (!cancelled) setIsAdmin(false);
+      }
+    };
+
+    void loadUserRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     currentPageRef.current = 0;
     hasMoreRef.current = true;
     loadingRef.current = false;
     setNotices([]);
     setError(null);
-    setCurrentPage(0);
-    setTotalPages(1);
     setHasMore(true);
     void loadPage(1);
   }, [loadPage]);
@@ -402,7 +460,10 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
     };
 
     const onWheel = (e: WheelEvent) => {
-      if (selectedNotice) return;
+      if (selectedNotice) {
+        e.stopPropagation();
+        return;
+      }
       if (currentPageRef.current <= 0) return;
 
       e.preventDefault();
@@ -440,7 +501,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
       el.removeEventListener("scroll", syncPageIndex);
       window.removeEventListener("resize", syncPageIndex);
     };
-  }, [loadPage, selectedNotice]);
+  }, [embedded, loadPage, selectedNotice]);
 
   useEffect(() => {
     if (!selectedNotice) return;
@@ -469,7 +530,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
     !error &&
     notices.length === 0 &&
     currentPageRef.current > 0;
-  const pages = Array.from({ length: Math.max(currentPage, 0) }, (_, pageIndex) =>
+  const pages = Array.from({ length: Math.ceil(notices.length / PAGE_SIZE) }, (_, pageIndex) =>
     notices.slice(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE)
   ).filter((chunk) => chunk.length > 0);
   const hasAnyNotice = notices.length > 0;
@@ -480,7 +541,20 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
         .map((stack) => stack.trim())
         .filter(Boolean)
     : [];
-  const canStartEdit = Boolean(detailNotice) && !detailLoading && !isEditing;
+  const canStartEdit =
+    isAdmin &&
+    Boolean(detailNotice) &&
+    !detailLoading &&
+    !isEditing &&
+    !isDeleting;
+  const canDelete =
+    isAdmin &&
+    Boolean(detailNotice) &&
+    !detailLoading &&
+    !isEditing &&
+    !isSavingEdit &&
+    !isDeleting;
+  const scrollOverflowClass = selectedNotice ? "overflow-hidden" : "overflow-y-auto";
 
   return (
     <div
@@ -488,10 +562,10 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
       data-scrollable={embedded ? "true" : "false"}
       className={
         hasAnyNotice
-          ? "no-scrollbar h-screen w-full overflow-y-auto bg-gray-300 scroll-smooth snap-y snap-mandatory"
+          ? `no-scrollbar h-screen w-full ${scrollOverflowClass} bg-gray-300 scroll-smooth snap-y snap-mandatory`
           : embedded
-            ? "no-scrollbar h-full w-full overflow-y-auto bg-gray-300 scroll-smooth snap-y snap-mandatory"
-            : "no-scrollbar min-h-screen w-full overflow-y-auto bg-gray-300 scroll-smooth snap-y snap-mandatory"
+            ? `no-scrollbar h-full w-full ${scrollOverflowClass} bg-gray-300 scroll-smooth snap-y snap-mandatory`
+            : `no-scrollbar min-h-screen w-full ${scrollOverflowClass} bg-gray-300 scroll-smooth snap-y snap-mandatory`
       }
     >
       <div className="mx-auto w-full max-w-3xl px-4">
@@ -499,12 +573,9 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
         {pages.map((chunk, pageIndex) => (
           <section
             key={`notice-page-${pageIndex + 1}`}
-            className={`snap-always snap-start ${hasAnyNotice ? "h-screen" : embedded ? "h-full" : "min-h-screen"} py-10`}
+            className={`snap-always snap-start ${hasAnyNotice ? "h-screen" : embedded ? "h-full" : "min-h-screen"} flex items-center justify-center py-6`}
           >
-            <header className="mb-4 text-center text-sm font-medium opacity-70">
-              Page {pageIndex + 1}
-            </header>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="mx-auto grid w-full max-w-4xl grid-cols-2 gap-6">
               {chunk.map((notice, indexInPage) => {
                 const globalIndex = pageIndex * PAGE_SIZE + indexInPage;
                 return (
@@ -519,9 +590,9 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                         openDetailModal(notice);
                       }
                     }}
-                    className="animate-[noticeIn_280ms_ease-out] cursor-pointer rounded-xl border border-white/20 bg-white/5 p-4 backdrop-blur-xs transition hover:-translate-y-0.5 hover:bg-white/15"
+                    className="mx-auto w-full animate-[noticeIn_280ms_ease-out] cursor-pointer rounded-2xl border border-white/20 bg-white/5 p-6 backdrop-blur-xs transition hover:-translate-y-0.5 hover:bg-white/15"
                   >
-                    <div className="mb-3 aspect-[4/3] w-full overflow-hidden rounded-lg bg-black/10">
+                    <div className="mb-4 aspect-[4/3] w-full overflow-hidden rounded-lg bg-black/10">
                       {notice.src ? (
                         <img
                           src={notice.src}
@@ -529,22 +600,19 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                           className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-2xl font-bold text-black/50">
+                        <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-black/50">
                           {globalIndex + 1}
                         </div>
                       )}
                     </div>
                     <header className="mb-3 flex items-start justify-between gap-4">
-                      <h2 className="text-base font-semibold">
+                      <h2 className="text-lg font-semibold">
                         {globalIndex + 1}. {notice.title}
                       </h2>
                       <span className="shrink-0 text-xs opacity-70">
                         {formatDate(notice.createdAt)}
                       </span>
                     </header>
-                    <p className="line-clamp-3 whitespace-pre-wrap text-sm leading-6 opacity-90">
-                      {notice.content}
-                    </p>
                   </article>
                 );
               })}
@@ -564,11 +632,6 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
           <p className="pb-8 text-center text-sm opacity-70">Loading...</p>
         )}
         {error && <p className="pb-8 text-center text-sm text-red-400">{error}</p>}
-        {notices.length > 0 && (
-          <div className="pb-4 text-center text-sm opacity-70">
-            Page {Math.max(currentPage, 1)} / {Math.max(totalPages, 1)}
-          </div>
-        )}
         {!hasMore && notices.length > 0 && (
           <p className="pb-8 text-center text-sm opacity-60">
             End of notices.
@@ -580,10 +643,15 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={closeDetailModal}
+          onWheel={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
           <div
-            className="no-scrollbar max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 text-black shadow-2xl"
+            className="no-scrollbar max-h-[90vh] w-full max-w-3xl overflow-y-auto overscroll-contain rounded-2xl bg-white p-5 text-black shadow-2xl"
             onClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
@@ -613,7 +681,17 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                     className="rounded-md border border-black/20 px-3 py-1 text-sm hover:bg-black/5"
                     onClick={startEdit}
                   >
-                    Edit
+                    수정
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void deleteNotice()}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "삭제중..." : "삭제"}
                   </button>
                 )}
                 {isEditing && (
@@ -622,6 +700,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                       type="button"
                       className="rounded-md border border-black/20 px-3 py-1 text-sm hover:bg-black/5"
                       onClick={cancelEdit}
+                      disabled={isSavingEdit}
                     >
                       Cancel
                     </button>
@@ -639,6 +718,7 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                   type="button"
                   className="rounded-md border border-black/20 px-3 py-1 text-sm hover:bg-black/5"
                   onClick={closeDetailModal}
+                  disabled={isSavingEdit || isDeleting}
                 >
                   Close
                 </button>
@@ -684,62 +764,6 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
                     className="w-full rounded-md border border-black/20 px-3 py-2 text-sm outline-none focus:border-black"
                     placeholder="Next.js, Prisma, Tailwind"
                   />
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
-                      Contents
-                    </p>
-                    <button
-                      type="button"
-                      className="rounded-md border border-black/20 px-2 py-1 text-xs hover:bg-black/5"
-                      onClick={addEditContent}
-                    >
-                      + Add Content
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {editContents.map((item, index) => (
-                      <div
-                        key={item.local_id}
-                        className="rounded-lg border border-black/15 bg-black/[0.02] p-3"
-                      >
-                        <div className="mb-2 flex items-center justify-between">
-                          <p className="text-xs font-semibold opacity-70">
-                            Content #{index + 1}
-                          </p>
-                          {editContents.length > 1 && (
-                            <button
-                              type="button"
-                              className="rounded-md border border-red-300 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
-                              onClick={() => removeEditContent(item.local_id)}
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          type="text"
-                          value={item.title}
-                          onChange={(e) =>
-                            updateEditContent(item.local_id, "title", e.target.value)
-                          }
-                          className="mb-2 w-full rounded-md border border-black/20 px-3 py-2 text-sm outline-none focus:border-black"
-                          placeholder="Content title"
-                          maxLength={120}
-                        />
-                        <textarea
-                          value={item.content}
-                          onChange={(e) =>
-                            updateEditContent(item.local_id, "content", e.target.value)
-                          }
-                          className="min-h-28 w-full rounded-md border border-black/20 px-3 py-2 text-sm outline-none focus:border-black"
-                          placeholder="Content body"
-                        />
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             ) : (
@@ -800,18 +824,6 @@ export default function NoticeListPanel({ embedded = false }: { embedded?: boole
         </div>
       )}
 
-      <style jsx global>{`
-        @keyframes noticeIn {
-          from {
-            opacity: 0;
-            transform: translateY(18px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }

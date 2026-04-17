@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/request-auth";
 
 function toTrimmed(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -12,6 +13,9 @@ function toPositiveInt(value: unknown) {
 }
 
 export async function POST(req: Request) {
+  const access = await requireAdmin(req);
+  if (!access.ok) return access.response;
+
   const contentType = req.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
     return NextResponse.json(

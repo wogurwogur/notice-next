@@ -1,13 +1,26 @@
-import Register from "@/components/Register"
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import Register from "@/components/Register";
+import { verifyAuthToken } from "@/lib/auth";
 
-export default function regester(){
+export const dynamic = "force-dynamic";
 
+export default async function regester() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("access_token")?.value;
 
-    return(
-        <div className="w-full h-full bg-black">
+  if (token) {
+    try {
+      await verifyAuthToken(token);
+      redirect("/main");
+    } catch {
+      // Ignore invalid/expired token and keep register page.
+    }
+  }
 
-            <Register/>
-
-        </div>
-    );
+  return (
+    <div className="w-full h-full bg-black pt-24">
+      <Register />
+    </div>
+  );
 }

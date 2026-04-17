@@ -1,0 +1,17 @@
+
+> notice-next@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.1.5 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.80:3000
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 2.7s
+○ Compiling /main ...
+ GET /main 200 in 5.7s (compile: 5.3s, render: 359ms)
+ GET /main 200 in 171ms (compile: 75ms, render: 96ms)
+ GET /api/notice/list?page=1&size=4 200 in 4.2s (compile: 3.6s, render: 576ms)
+ GET /main 200 in 508ms (compile: 187ms, render: 321ms)
+ GET /api/notice/list?page=1&size=4 200 in 4.0s (compile: 139ms, render: 3.9s)

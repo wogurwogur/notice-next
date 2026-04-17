@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toNoticeImageProxyUrl } from "@/lib/s3";
+import { requireAdmin } from "@/lib/request-auth";
 
 type NoticeContentInput = {
   seq_content?: number;
@@ -42,6 +43,9 @@ function toContents(value: unknown): NoticeContentInput[] {
 }
 
 export async function PATCH(req: Request) {
+  const access = await requireAdmin(req);
+  if (!access.ok) return access.response;
+
   const contentType = req.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
     return NextResponse.json(

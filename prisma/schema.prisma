@@ -50,11 +50,38 @@ model Notice_img {
 }
 
 model User {
-  seq_user_id   Int      @id @default(autoincrement())
-  user_id       String   @unique
-  user_password String
-  user_email    String
-  createdAt     DateTime @default(now())
+  seq_user_id       Int           @id @default(autoincrement())
+  username          String        @unique
+  email             String        @unique
+  password_hash     String?
+  user_role         String        @default("USER")
+  display_name      String?
+  email_verified_at DateTime?
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  auth_accounts     AuthAccount[]
 
   @@map("TBL_USER")
+}
+
+model AuthAccount {
+  seq_auth_account_id Int      @id @default(autoincrement())
+  seq_user_id         Int
+  provider            String
+  provider_account_id String
+  provider_email      String?
+  access_token        String?  @db.Text
+  refresh_token       String?  @db.Text
+  expires_at          Int?
+  token_type          String?
+  scope               String?
+  id_token            String?  @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user                User     @relation(fields: [seq_user_id], references: [seq_user_id], onDelete: Cascade)
+
+  @@unique([provider, provider_account_id], map: "UQ_AUTH_PROVIDER_ACCOUNT")
+  @@index([seq_user_id])
+  @@map("TBL_AUTH_ACCOUNT")
 }

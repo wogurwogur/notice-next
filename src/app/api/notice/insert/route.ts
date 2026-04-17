@@ -4,6 +4,7 @@ import {
   deleteNoticeImagesFromS3,
   uploadNoticeImageToS3,
 } from "@/lib/s3";
+import { requireAdmin } from "@/lib/request-auth";
 import path from "node:path";
 
 export const runtime = "nodejs";
@@ -57,6 +58,9 @@ function isAllowedImageFile(file: File) {
 }
 
 export async function POST(req: Request) {
+  const access = await requireAdmin(req);
+  if (!access.ok) return access.response;
+
   const contentType = req.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) {
     return NextResponse.json(

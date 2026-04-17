@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import PageOne from "@/components/PageOne";
 import NoticeListPanel from "@/components/NoticeListPanel";
+import SkillsArchivePanel from "@/components/SkillsArchivePanel";
+import Header from "@/components/header";
+
+const INTRO_LOCK_MS = 8500;
 
 export default function PushScroll() {
-  const [initialLockActive, setInitialLockActive] = useState(true);
   const root = useRef<HTMLDivElement>(null);
   const indexRef = useRef(0);
   const lockRef = useRef(false);
-  const initLockTimerRef = useRef<number | null>(null);
+  const [currentPanel, setCurrentPanel] = useState(0);
 
   useEffect(() => {
     const el = root.current;
@@ -21,7 +24,9 @@ export default function PushScroll() {
     const syncIndex = () => {
       const h = el.clientHeight || window.innerHeight;
       if (h <= 0) return;
-      indexRef.current = clamp(Math.round(el.scrollTop / h));
+      const nextIndex = clamp(Math.floor(el.scrollTop / h));
+      indexRef.current = nextIndex;
+      setCurrentPanel((prev) => (prev === nextIndex ? prev : nextIndex));
     };
 
     const canScrollInsideCurrentPanel = (deltaY: number) => {
@@ -58,6 +63,7 @@ export default function PushScroll() {
       if (next === indexRef.current) return;
 
       indexRef.current = next;
+      setCurrentPanel(next);
       lockRef.current = true;
       panels[next].scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -66,40 +72,22 @@ export default function PushScroll() {
         syncIndex();
       }, 700);
     };
-    const onGlobalWheel = (e: WheelEvent) => {
-      if (!lockRef.current) return;
-      e.preventDefault();
-    };
 
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    // Keep intro section fixed for a few seconds at startup.
+    lockRef.current = true;
+    const introLockTimer = window.setTimeout(() => {
+      lockRef.current = false;
+    }, INTRO_LOCK_MS);
 
     syncIndex();
-    // Keep initial scroll lock for 8.4 seconds on first screen.
-    lockRef.current = true;
-    initLockTimerRef.current = window.setTimeout(() => {
-      lockRef.current = false;
-      setInitialLockActive(false);
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
-      initLockTimerRef.current = null;
-      syncIndex();
-    }, 8400);
     el.addEventListener("wheel", onWheel, { passive: false });
-    window.addEventListener("wheel", onGlobalWheel, { passive: false });
+    el.addEventListener("scroll", syncIndex, { passive: true });
     window.addEventListener("resize", syncIndex);
 
     return () => {
-      if (initLockTimerRef.current) {
-        window.clearTimeout(initLockTimerRef.current);
-        initLockTimerRef.current = null;
-      }
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
+      window.clearTimeout(introLockTimer);
       el.removeEventListener("wheel", onWheel);
-      window.removeEventListener("wheel", onGlobalWheel);
+      el.removeEventListener("scroll", syncIndex);
       window.removeEventListener("resize", syncIndex);
     };
   }, []);
@@ -107,10 +95,14 @@ export default function PushScroll() {
   return (
     <div
       ref={root}
-      className={`h-screen no-scrollbar ${initialLockActive ? "overflow-hidden" : "overflow-y-auto"}`}
+      className="h-screen no-scrollbar overflow-y-auto"
     >
+      {currentPanel > 0 && <Header />}
       <section className="panel h-screen">
         <PageOne onActiveChange={() => {}} />
+      </section>
+      <section className="panel h-screen">
+        <SkillsArchivePanel />
       </section>
       <section className="panel h-screen">
         <NoticeListPanel embedded />

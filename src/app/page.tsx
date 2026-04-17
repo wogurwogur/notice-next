@@ -1,4 +1,3 @@
-import Header from "@/components/header"
 import { redirect } from "next/navigation";
 
 
